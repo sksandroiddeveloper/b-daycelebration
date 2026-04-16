@@ -12,36 +12,38 @@ import android.net.Uri
 import android.os.Binder
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
-import com.birthday.celebrate.MainActivity
 
 /**
- * Foreground Service that keeps music playing even when the screen is active.
- * Uses MediaPlayer for local file playback from phone storage.
- * Bound service — Activity binds to it to control play/pause/stop.
+ * MusicService — Background-capable music playback.
+ *
+ * Behaviour:
+ *  • When playing  → runs as a FOREGROUND service with a persistent notification
+ *                    that shows song title + Play/Pause + ✕ CLOSE buttons.
+ *  • When paused   → stays foreground so the OS doesn't kill it, but user can
+ *                    tap ✕ in the notification to fully stop & dismiss it.
+ *  • When stopped  → removes foreground, removes notification, stops itself.
+ *
+ * The notification CLOSE button calls ACTION_STOP which:
+ *   1. Stops MediaPlayer
+ *   2. Calls stopForeground(STOP_FOREGROUND_REMOVE) → removes notification
+ *   3. Calls stopSelf() → service is fully gone
  */
 class MusicService : Service() {
 
-    // ── Binder so Activity can call methods directly ──────────────
     inner class MusicBinder : Binder() {
         fun getService(): MusicService = this@MusicService
     }
 
-    private val binder = MusicBinder()
+    private val binder      = MusicBinder()
     private var mediaPlayer: MediaPlayer? = null
 
-    var isPlaying: Boolean = false
-        private set
+    var isPlaying: Boolean      = false ; private set
+    var currentMusicUri: String? = null ; private set
+    var songTitle: String       = "No song selected" ; private set
 
-    var currentMusicUri: String? = null
-        private set
-
-    var songTitle: String = "No song selected"
-        private set
-
-    // Callback so ViewModel can react to state changes
     var onStateChanged: ((isPlaying: Boolean, title: String) -> Unit)? = null
 
-    // ── Service lifecycle ─────────────────────────────────────────
+    // ── Lifecycle ────────────────────────────────────────────────
     override fun onBind(intent: Intent?): IBinder = binder
 
     override fun onCreate() {
@@ -52,7 +54,7 @@ class MusicService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_PLAY_PAUSE -> togglePlayPause()
-            ACTION_STOP -> stopMusic()
+            ACTION_STOP       -> stopAndDismiss()   // ← notification ✕ button
         }
         return START_NOT_STICKY
     }
@@ -62,17 +64,13 @@ class MusicService : Service() {
         releasePlayer()
     }
 
-    // ── Public API (called from ViewModel via bound service) ──────
+    // ── Public API ───────────────────────────────────────────────
 
-    /**
-     * Load a music URI from device storage and start playing.
-     * uri: content://media/external/audio/... from the system music picker
-     */
+    /** Start playing a song from device storage URI. Shows foreground notification. */
     fun playMusic(uri: String, title: String) {
         currentMusicUri = uri
-        songTitle = title
+        songTitle       = title
         releasePlayer()
-
         try {
             mediaPlayer = MediaPlayer().apply {
                 setAudioAttributes(
@@ -82,11 +80,12 @@ class MusicService : Service() {
                         .build()
                 )
                 setDataSource(this@MusicService, Uri.parse(uri))
-                isLooping = true          // Loop music throughout the slideshow
+                isLooping = true
                 prepare()
                 start()
             }
             isPlaying = true
+            // Promote to foreground so Android doesn't kill us
             startForeground(NOTIFICATION_ID, buildNotification(songTitle, true))
             onStateChanged?.invoke(true, songTitle)
         } catch (e: Exception) {
@@ -96,108 +95,137 @@ class MusicService : Service() {
         }
     }
 
+    /** Toggle play / pause. Updates the notification button icon. */
     fun togglePlayPause() {
         val player = mediaPlayer ?: return
         if (player.isPlaying) {
             player.pause()
             isPlaying = false
+            // Stay foreground while paused so OS doesn't kill service,
+            // but update notification to show Play button
+            updateNotification(songTitle, false)
         } else {
             player.start()
             isPlaying = true
+            updateNotification(songTitle, true)
         }
-        // Update notification button icon
-        updateNotification(songTitle, isPlaying)
         onStateChanged?.invoke(isPlaying, songTitle)
     }
 
-    fun stopMusic() {
+    /**
+     * Fully stop music, remove the foreground notification, and destroy the service.
+     * Called from:
+     *   • The ✕ CLOSE button in the notification
+     *   • ViewModel.stopMusic() from the UI
+     */
+    fun stopAndDismiss() {
         releasePlayer()
-        isPlaying = false
+        isPlaying       = false
         currentMusicUri = null
-        songTitle = "No song selected"
+        songTitle       = "No song selected"
+
+        // Remove notification AND stop foreground in one call
         stopForeground(STOP_FOREGROUND_REMOVE)
-        stopSelf()
+        stopSelf()                          // Service is now fully gone
+
         onStateChanged?.invoke(false, "No song selected")
     }
 
+    /** Legacy alias kept so ViewModel.stopMusic() still compiles. */
+    fun stopMusic() = stopAndDismiss()
+
     fun setVolume(volume: Float) {
-        // volume: 0.0f (silent) to 1.0f (full)
         mediaPlayer?.setVolume(volume, volume)
     }
 
+    // ── Helpers ──────────────────────────────────────────────────
+
     private fun releasePlayer() {
         mediaPlayer?.apply {
-            if (isPlaying) stop()
+            try { if (isPlaying) stop() } catch (_: Exception) {}
             reset()
             release()
         }
         mediaPlayer = null
     }
 
-    // ── Notification (required for foreground service) ────────────
+    // ── Notification ─────────────────────────────────────────────
 
     private fun createNotificationChannel() {
         val channel = NotificationChannel(
             CHANNEL_ID,
             "Birthday Music",
-            NotificationManager.IMPORTANCE_LOW   // LOW = silent, no popup
+            NotificationManager.IMPORTANCE_LOW   // silent — no heads-up popup
         ).apply {
-            description = "Shows currently playing birthday song"
+            description = "Birthday background music controls"
             setSound(null, null)
+            setShowBadge(false)
         }
-        getSystemService(NotificationManager::class.java)
-            .createNotificationChannel(channel)
+        getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
     private fun buildNotification(title: String, playing: Boolean): Notification {
-        val activityIntent = Intent(this, MainActivity::class.java)
-        val contentPi = PendingIntent.getActivity(
-            this, 0, activityIntent,
+        // Tap notification → open app
+        val openApp = PendingIntent.getActivity(
+            this, 0,
+            Intent(this, com.birthday.celebrate.MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val playPauseIntent = Intent(this, MusicService::class.java).apply {
-            action = ACTION_PLAY_PAUSE
-        }
+        // Play / Pause button
         val playPausePi = PendingIntent.getService(
-            this, 1, playPauseIntent,
+            this, 1,
+            Intent(this, MusicService::class.java).apply { action = ACTION_PLAY_PAUSE },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val stopIntent = Intent(this, MusicService::class.java).apply {
-            action = ACTION_STOP
-        }
+        // ✕ CLOSE/STOP button — fully stops service and removes notification
         val stopPi = PendingIntent.getService(
-            this, 2, stopIntent,
+            this, 2,
+            Intent(this, MusicService::class.java).apply { action = ACTION_STOP },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("🎂 Birthday Celebrate")
-            .setContentText("🎵 $title")
+            .setContentText(if (playing) "🎵 $title" else "⏸ $title (paused)")
+            .setSubText("Birthday Music")
             .setSmallIcon(android.R.drawable.ic_media_play)
-            .setContentIntent(contentPi)
+            .setContentIntent(openApp)
+            // ── Action 1: Play or Pause ──────────────────────────
             .addAction(
-                if (playing) android.R.drawable.ic_media_pause
-                else android.R.drawable.ic_media_play,
-                if (playing) "Pause" else "Play",
-                playPausePi
+                NotificationCompat.Action.Builder(
+                    if (playing) android.R.drawable.ic_media_pause
+                    else         android.R.drawable.ic_media_play,
+                    if (playing) "Pause" else "Play",
+                    playPausePi
+                ).build()
             )
-            .addAction(android.R.drawable.ic_delete, "Stop", stopPi)
+            // ── Action 2: ✕ Close / Stop ────────────────────────
+            .addAction(
+                NotificationCompat.Action.Builder(
+                    android.R.drawable.ic_menu_close_clear_cancel,
+                    "Close",          // shown as "Close" under notification
+                    stopPi
+                ).build()
+            )
+            // Ongoing = user cannot swipe-dismiss (must tap Close button)
             .setOngoing(true)
             .setSilent(true)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .build()
     }
 
     private fun updateNotification(title: String, playing: Boolean) {
-        val nm = getSystemService(NotificationManager::class.java)
-        nm.notify(NOTIFICATION_ID, buildNotification(title, playing))
+        getSystemService(NotificationManager::class.java)
+            .notify(NOTIFICATION_ID, buildNotification(title, playing))
     }
 
     companion object {
-        const val CHANNEL_ID = "birthday_music_channel"
-        const val NOTIFICATION_ID = 1001
-        const val ACTION_PLAY_PAUSE = "com.birthday.celebrate.PLAY_PAUSE"
-        const val ACTION_STOP = "com.birthday.celebrate.STOP"
+        const val CHANNEL_ID        = "birthday_music_channel"
+        const val NOTIFICATION_ID   = 1001
+        const val ACTION_PLAY_PAUSE = "com.birthday.celebrate.ACTION_PLAY_PAUSE"
+        const val ACTION_STOP       = "com.birthday.celebrate.ACTION_STOP"
     }
 }

@@ -10,89 +10,85 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * MusicController handles the ServiceConnection lifecycle.
- * ViewModel creates this, Activity keeps it alive.
- * Exposes StateFlows so Compose UI reacts automatically.
+ * MusicController — bridges ViewModel ↔ MusicService.
+ *
+ * Lifecycle:
+ *  bind()   called in Activity.onStart()
+ *  unbind() called in Activity.onStop()
+ *
+ * The Service itself keeps running (foreground) after unbind — music
+ * continues in background. Re-binding on next onStart() re-syncs state.
  */
 class MusicController(private val context: Context) {
 
-    private var musicService: MusicService? = null
+    private var service: MusicService? = null
     private var bound = false
 
-    // ── Exposed state (ViewModel/UI observes these) ───────────────
-    private val _isPlaying = MutableStateFlow(false)
-    val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
+    private val _isPlaying  = MutableStateFlow(false)
+    private val _songTitle  = MutableStateFlow("No song selected")
+    private val _musicUri   = MutableStateFlow<String?>(null)
+    private val _volume     = MutableStateFlow(0.8f)
 
-    private val _songTitle = MutableStateFlow("No song selected")
-    val songTitle: StateFlow<String> = _songTitle.asStateFlow()
+    val isPlaying : StateFlow<Boolean>  = _isPlaying.asStateFlow()
+    val songTitle : StateFlow<String>   = _songTitle.asStateFlow()
+    val musicUri  : StateFlow<String?>  = _musicUri.asStateFlow()
+    val volume    : StateFlow<Float>    = _volume.asStateFlow()
 
-    private val _musicUri = MutableStateFlow<String?>(null)
-    val musicUri: StateFlow<String?> = _musicUri.asStateFlow()
+    val hasMusic: Boolean get() = _musicUri.value != null
 
-    private val _volume = MutableStateFlow(0.8f)
-    val volume: StateFlow<Float> = _volume.asStateFlow()
-
-    // ── ServiceConnection ─────────────────────────────────────────
     private val connection = object : ServiceConnection {
-        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-            val binder = service as MusicService.MusicBinder
-            musicService = binder.getService()
-            bound = true
-
-            // Sync state from service (e.g., after config change)
-            _isPlaying.value = musicService?.isPlaying ?: false
-            _songTitle.value = musicService?.songTitle ?: "No song selected"
-            _musicUri.value = musicService?.currentMusicUri
-
-            // Register callback so service notifies us of changes
-            musicService?.onStateChanged = { playing, title ->
+        override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
+            service = (binder as MusicService.MusicBinder).getService()
+            bound   = true
+            // Sync UI state from the running service (e.g., after rotation)
+            _isPlaying.value = service?.isPlaying ?: false
+            _songTitle.value = service?.songTitle ?: "No song selected"
+            _musicUri.value  = service?.currentMusicUri
+            // Get live updates from service
+            service?.onStateChanged = { playing, title ->
                 _isPlaying.value = playing
                 _songTitle.value = title
+                // If service stopped itself (Close button), clear URI
+                if (!playing && title == "No song selected") _musicUri.value = null
             }
         }
-
         override fun onServiceDisconnected(name: ComponentName?) {
-            musicService = null
-            bound = false
+            service = null; bound = false
         }
     }
 
-    // ── Lifecycle ─────────────────────────────────────────────────
     fun bind() {
         val intent = Intent(context, MusicService::class.java)
-        context.startService(intent)   // Start so it persists if unbound briefly
+        context.startService(intent)
         context.bindService(intent, connection, Context.BIND_AUTO_CREATE)
     }
 
     fun unbind() {
         if (bound) {
-            musicService?.onStateChanged = null
+            service?.onStateChanged = null
             context.unbindService(connection)
             bound = false
         }
     }
 
-    // ── Controls (called from ViewModel) ─────────────────────────
-
     fun playMusic(uri: String, title: String) {
-        _musicUri.value = uri
+        _musicUri.value  = uri
         _songTitle.value = title
-        musicService?.playMusic(uri, title)
+        service?.playMusic(uri, title)
     }
 
-    fun togglePlayPause() {
-        musicService?.togglePlayPause()
-    }
+    fun togglePlayPause() = service?.togglePlayPause()
 
+    /** Stop music, remove notification, clear state. */
     fun stopMusic() {
-        _musicUri.value = null
-        musicService?.stopMusic()
+        service?.stopAndDismiss()
+        _musicUri.value  = null
+        _isPlaying.value = false
+        _songTitle.value = "No song selected"
     }
 
-    fun setVolume(volume: Float) {
-        _volume.value = volume
-        musicService?.setVolume(volume)
+    fun setVolume(vol: Float) {
+        _volume.value = vol
+        service?.setVolume(vol)
     }
-
-    val hasMusic: Boolean get() = _musicUri.value != null
 }

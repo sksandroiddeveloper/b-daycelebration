@@ -1,3 +1,8 @@
+# ══════════════════════════════════════════════════════════════════
+#  PR Quality Gate — runs on every Pull Request
+#  Posts a pass/fail comment on the PR automatically
+# ══════════════════════════════════════════════════════════════════
+
 name: 🔎 PR Quality Gate
 
 on:
@@ -31,60 +36,49 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle.properties') }}
-          restore-keys: ${{ runner.os }}-gradle-
+            ~/.android/build-cache
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts','**/libs.versions.toml') }}
+          restore-keys: gradle-${{ runner.os }}-
 
       - name: 🔐 Make gradlew executable
         run: chmod +x ./gradlew
 
-      # 🧪 Tests (MUST PASS)
+      - name: 🔍 Lint check
+        run: ./gradlew lintDebug --no-daemon --stacktrace
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2g"
+
       - name: 🧪 Unit tests
-        id: tests
-        run: ./gradlew testDebugUnitTest --stacktrace
+        run: ./gradlew testDebugUnitTest --no-daemon --stacktrace
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2g"
 
-      # 🔨 Compile check (MUST PASS)
       - name: 🔨 Compile check
-        id: compile
-        run: ./gradlew compileDebugKotlin --stacktrace
+        run: ./gradlew compileDebugKotlin --no-daemon --stacktrace
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2g"
 
-      # 📋 PR Comment (updates existing instead of spamming)
       - name: 📋 Post PR comment
         if: always()
         uses: actions/github-script@v7
         with:
           script: |
-            const testResult    = '${{ steps.tests.outcome }}';
-            const compileResult = '${{ steps.compile.outcome }}';
-            const passed = testResult === 'success' && compileResult === 'success';
-            const emoji  = passed ? '✅' : '❌';
-            const msg    = passed
-              ? '**Tests & Build Passed!** Ready to merge. 🎂'
-              : `**Failed:**\n- 🧪 Tests: ${testResult}\n- 🔨 Compile: ${compileResult}`;
-
-            const body = `## ${emoji} PR Quality Gate\n\n${msg}\n\n**Commit:** \`${context.sha.substring(0, 7)}\`\n**Run:** [View details](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`;
-
-            const comments = await github.rest.issues.listComments({
+            const status = '${{ job.status }}';
+            const emoji  = status === 'success' ? '✅' : '❌';
+            const msg    = status === 'success'
+              ? '**All checks passed!** Ready to merge. 🎂'
+              : '**Checks failed.** Please fix the errors above.';
+            github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
-              repo: context.repo.repo,
+              repo:  context.repo.repo,
+              body: `## ${emoji} PR Quality Gate\n\n${msg}\n\n**Commit:** \`${context.sha.substring(0,7)}\`\n**Run:** [View details](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`
             });
 
-            const existing = comments.data.find(c =>
-              c.user.type === 'Bot' && c.body.includes('PR Quality Gate')
-            );
-
-            if (existing) {
-              await github.rest.issues.updateComment({
-                comment_id: existing.id,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: body,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: body,
-              });
-            }
+      - name: 📊 Upload lint report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-lint-report
+          path: app/build/reports/lint-results-debug.html
+          retention-days: 3

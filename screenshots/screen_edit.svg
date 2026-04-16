@@ -1,0 +1,87 @@
+<svg width="240" height="480" viewBox="0 0 240 480" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <clipPath id="phone3"><rect width="240" height="480" rx="28"/></clipPath>
+  </defs>
+
+  <!-- Phone frame -->
+  <rect width="240" height="480" rx="28" fill="#111" stroke="#444" stroke-width="2"/>
+  <rect x="3" y="3" width="234" height="474" rx="26" fill="#1A0A2E" clip-path="url(#phone3)"/>
+
+  <!-- Top bar -->
+  <rect x="3" y="3" width="234" height="52" rx="26" fill="#6C5CE7"/>
+  <rect x="3" y="27" width="234" height="28" fill="#6C5CE7"/>
+  <text x="20" y="19" font-family="Arial" font-size="10" fill="white">9:41</text>
+  <text x="190" y="19" font-family="Arial" font-size="10" fill="white">●●● ■</text>
+  <text x="25" y="44" font-family="Arial" font-size="10" fill="white">←</text>
+  <text x="90" y="44" font-family="Arial" font-size="14" fill="white" font-weight="bold">✏️ Customize Birthday</text>
+  <text x="205" y="44" font-family="Arial" font-size="10" fill="white" opacity="0.7">Reset</text>
+
+  <!-- Basic info card -->
+  <rect x="12" y="62" width="216" height="110" rx="14" fill="#2D1554"/>
+  <text x="24" y="82" font-family="Arial" font-size="13" fill="white" font-weight="bold">🎂 Basic Info</text>
+  <!-- Name field -->
+  <rect x="20" y="90" width="200" height="24" rx="8" fill="none" stroke="#E84393" stroke-width="1.5"/>
+  <text x="28" y="106" font-family="Arial" font-size="10" fill="#E84393">Child's Name</text>
+  <text x="100" y="106" font-family="Arial" font-size="11" fill="white">Aarav</text>
+  <!-- Age field -->
+  <rect x="20" y="120" width="200" height="24" rx="8" fill="none" stroke="#6C5CE7" stroke-width="1"/>
+  <text x="28" y="136" font-family="Arial" font-size="10" fill="#AD7BFF">Age (Turning)</text>
+  <text x="120" y="136" font-family="Arial" font-size="11" fill="white">5</text>
+  <!-- Save button -->
+  <rect x="20" y="150" width="200" height="18" rx="9" fill="#E84393"/>
+  <text x="120" y="162" font-family="Arial" font-size="10" fill="white" text-anchor="middle" font-weight="bold">💾 Save Changes</text>
+
+  <!-- Music card -->
+  <rect x="12" y="182" width="216" height="110" rx="14" fill="#2D1554"/>
+  <text x="24" y="202" font-family="Arial" font-size="13" fill="white" font-weight="bold">🎵 Background Music</text>
+  <text x="24" y="216" font-family="Arial" font-size="9" fill="white" opacity="0.55">Play a song from your phone during slideshow</text>
+
+  <!-- Selected song display -->
+  <rect x="20" y="222" width="200" height="42" rx="10" fill="#6C5CE7" opacity="0.25"/>
+  <rect x="20" y="222" width="200" height="42" rx="10" fill="none" stroke="#6C5CE7" stroke-width="1"/>
+  <!-- Vinyl mini -->
+  <circle cx="40" cy="243" r="14" fill="#2D1554"/>
+  <circle cx="40" cy="243" r="10" fill="#6C5CE7" opacity="0.5"/>
+  <circle cx="40" cy="243" r="5" fill="#1A0A2E"/>
+  <text x="60" y="238" font-family="Arial" font-size="8" fill="#AD7BFF">Selected Song</text>
+  <text x="60" y="252" font-family="Arial" font-size="11" fill="white" font-weight="bold">Happy Birthday Song</text>
+  <!-- Play btn -->
+  <circle cx="196" cy="243" r="13" fill="#6C5CE7"/>
+  <text x="196" y="248" font-family="Arial" font-size="12" fill="white" text-anchor="middle">⏸</text>
+
+  <!-- Change / Remove buttons -->
+  <rect x="20" y="272" width="95" height="16" rx="8" fill="none" stroke="white" stroke-width="0.8" opacity="0.4"/>
+  <text x="67" y="283" font-family="Arial" font-size="9" fill="white" text-anchor="middle">↔ Change Song</text>
+  <rect x="122" y="272" width="98" height="16" rx="8" fill="none" stroke="#FF6B6B" stroke-width="0.8" opacity="0.6"/>
+  <text x="171" y="283" font-family="Arial" font-size="9" fill="#FF6B6B" text-anchor="middle">🗑 Remove</text>
+
+  <!-- Slides section -->
+  <text x="24" y="308" font-family="Arial" font-size="13" fill="white" font-weight="bold">📸 Customize Slides</text>
+  <text x="24" y="320" font-family="Arial" font-size="9" fill="white" opacity="0.6">Add photos from your phone gallery!</text>
+
+  <!-- Slide card 1 -->
+  <rect x="12" y="328" width="216" height="52" rx="12" fill="#FF6B6B" opacity="0.25"/>
+  <rect x="12" y="328" width="216" height="52" rx="12" fill="none" stroke="#FF6B6B" stroke-width="0.8" opacity="0.5"/>
+  <circle cx="34" cy="354" r="16" fill="#FF6B6B"/>
+  <text x="34" y="359" font-family="Segoe UI Emoji" font-size="16" text-anchor="middle">🎂</text>
+  <text x="56" y="348" font-family="Arial" font-size="9" fill="white" opacity="0.6">Slide 1</text>
+  <text x="56" y="362" font-family="Arial" font-size="11" fill="white" font-weight="bold">Happy Birthday!</text>
+  <text x="56" y="374" font-family="Arial" font-size="9" fill="#4ECDC4">📷 Photo added ✓</text>
+  <text x="218" y="356" font-family="Arial" font-size="14" fill="white" text-anchor="middle">∨</text>
+
+  <!-- Slide card 2 -->
+  <rect x="12" y="388" width="216" height="44" rx="12" fill="#845EC2" opacity="0.25"/>
+  <rect x="12" y="388" width="216" height="44" rx="12" fill="none" stroke="#845EC2" stroke-width="0.8" opacity="0.5"/>
+  <circle cx="34" cy="410" r="16" fill="#845EC2"/>
+  <text x="34" y="415" font-family="Segoe UI Emoji" font-size="16" text-anchor="middle">🌟</text>
+  <text x="56" y="405" font-family="Arial" font-size="9" fill="white" opacity="0.6">Slide 2</text>
+  <text x="56" y="419" font-family="Arial" font-size="11" fill="white" font-weight="bold">You Are Amazing!</text>
+  <text x="218" y="413" font-family="Arial" font-size="14" fill="white" text-anchor="middle">∨</text>
+
+  <!-- More slides faded -->
+  <rect x="12" y="440" width="216" height="26" rx="8" fill="white" opacity="0.05"/>
+  <text x="120" y="457" font-family="Arial" font-size="9" fill="white" opacity="0.3" text-anchor="middle">↓ 8 more slides...</text>
+
+  <!-- Home indicator -->
+  <rect x="90" y="468" width="60" height="4" rx="2" fill="white" opacity="0.3"/>
+</svg>
