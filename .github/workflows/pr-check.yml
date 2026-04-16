@@ -25,36 +25,66 @@ jobs:
           java-version: '17'
           distribution: temurin
 
+      - name: 📦 Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle.properties') }}
+          restore-keys: ${{ runner.os }}-gradle-
+
       - name: 🔐 Make gradlew executable
         run: chmod +x ./gradlew
 
-      # 🔍 Lint (NON-BLOCKING)
-      - name: 🔍 Lint check (non-blocking)
-        run: ./gradlew lintDebug || true
-
       # 🧪 Tests (MUST PASS)
       - name: 🧪 Unit tests
-        run: ./gradlew testDebugUnitTest --no-daemon --stacktrace
+        id: tests
+        run: ./gradlew testDebugUnitTest --stacktrace
 
       # 🔨 Compile check (MUST PASS)
       - name: 🔨 Compile check
-        run: ./gradlew compileDebugKotlin --no-daemon --stacktrace
+        id: compile
+        run: ./gradlew compileDebugKotlin --stacktrace
 
-      # 📋 PR Comment
+      # 📋 PR Comment (updates existing instead of spamming)
       - name: 📋 Post PR comment
         if: always()
         uses: actions/github-script@v7
         with:
           script: |
-            const status = '${{ job.status }}';
-            const emoji  = status === 'success' ? '✅' : '❌';
-            const msg    = status === 'success'
+            const testResult    = '${{ steps.tests.outcome }}';
+            const compileResult = '${{ steps.compile.outcome }}';
+            const passed = testResult === 'success' && compileResult === 'success';
+            const emoji  = passed ? '✅' : '❌';
+            const msg    = passed
               ? '**Tests & Build Passed!** Ready to merge. 🎂'
-              : '**Build/Test failed.** Please fix errors.';
+              : `**Failed:**\n- 🧪 Tests: ${testResult}\n- 🔨 Compile: ${compileResult}`;
 
-            github.rest.issues.createComment({
+            const body = `## ${emoji} PR Quality Gate\n\n${msg}\n\n**Commit:** \`${context.sha.substring(0, 7)}\`\n**Run:** [View details](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`;
+
+            const comments = await github.rest.issues.listComments({
               issue_number: context.issue.number,
               owner: context.repo.owner,
-              repo:  context.repo.repo,
-              body: `## ${emoji} PR Quality Gate\n\n${msg}\n\n**Commit:** \`${context.sha.substring(0,7)}\`\n**Run:** [View details](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`
+              repo: context.repo.repo,
             });
+
+            const existing = comments.data.find(c =>
+              c.user.type === 'Bot' && c.body.includes('PR Quality Gate')
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                comment_id: existing.id,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: body,
+              });
+            }
