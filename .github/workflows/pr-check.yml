@@ -47,7 +47,7 @@ steps:
   - name: 🔐 Make gradlew executable
     run: chmod +x ./gradlew
 
-  # ✅ Clean (important for CI stability)
+  # ✅ Clean (important for CI stability) done check
   - name: 🧹 Clean
     run: ./gradlew clean
 
