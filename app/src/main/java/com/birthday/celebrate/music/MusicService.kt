@@ -13,7 +13,6 @@ import android.os.Binder
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.birthday.celebrate.MainActivity
-import com.birthday.celebrate.R
 
 /**
  * Foreground Service that keeps music playing even when the screen is active.

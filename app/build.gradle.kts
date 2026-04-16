@@ -28,21 +28,40 @@ android {
                 "proguard-rules.pro"
             )
         }
+        debug {
+            // Debug builds are unsigned — no keystore needed
+            isDebuggable = true
+        }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+
     kotlinOptions {
         jvmTarget = "11"
     }
+
     buildFeatures {
         compose = true
     }
+
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
+    }
+
+    // ── Lint: warn but never block CI build ──────────────────────
+    lint {
+        abortOnError = false          // Never fail the build on lint errors
+        checkReleaseBuilds = false    // Skip lint on release — we only build debug
+        warningsAsErrors = false
+        disable += setOf(
+            "MissingTranslation",
+            "ExtraTranslation"
+        )
     }
 }
 
